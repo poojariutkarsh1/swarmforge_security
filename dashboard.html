@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SwarmForge Security</title>
+<style>
+  body{margin:0;background:#0b1220;color:#e6edf7;font-family:Segoe UI,Arial,sans-serif;text-align:center;padding:16px}
+  h1{letter-spacing:3px;margin:8px 0}
+  .node{display:inline-block;border:1px solid #2b6cff;border-radius:10px;padding:10px 24px;margin:8px}
+  .online{color:#2ee6a6;font-weight:bold}
+  .flow{max-width:420px;margin:16px auto}
+  .step{border:2px solid #26324a;border-radius:10px;padding:12px;margin:0;transition:.4s}
+  .step.done{border-color:#2ee6a6;background:#0f2a24;box-shadow:0 0 14px #2ee6a655}
+  .step.active{border-color:#ffd24a;animation:pulse .6s infinite alternate}
+  .arrow{font-size:20px;color:#5b6b8c;line-height:26px}
+  @keyframes pulse{to{box-shadow:0 0 16px #ffd24a}}
+  .card{max-width:420px;margin:14px auto;border:1px solid #26324a;border-radius:10px;padding:12px;text-align:left}
+  .ok{color:#2ee6a6}.bad{color:#ff5470}.wait{color:#7d8aa5}
+  button,input{padding:8px 12px;border-radius:6px;border:1px solid #2b6cff;background:#12203a;color:#fff}
+  button{cursor:pointer;background:#2b6cff}
+  code{word-break:break-all;color:#9ab}
+</style></head><body>
+<h1>SWARMFORGE SECURITY</h1>
+<div class="node">ESP32 #2 SECURITY NODE<br>Status: <span class="online" id="online">DEMO MODE</span></div>
+<div>
+  ESP32 IP: <input id="ip" value="192.168.4.1" size="12">
+  <button onclick="run(true)">Run on ESP32</button>
+  <button onclick="run(false)">Run simulated demo</button>
+</div>
+
+<div class="flow">
+  <div class="step" id="s0">🤖 ROBOT</div><div class="arrow">│ ECDH ▼</div>
+  <div class="step" id="s1">KEY EXCHANGE (ECDH)</div><div class="arrow">▼</div>
+  <div class="step" id="s2">FUZZY SECRET</div><div class="arrow">▼</div>
+  <div class="step" id="s3">HMAC AUTHENTICATION</div><div class="arrow">▼</div>
+  <div class="step" id="s4">AES-GCM ENCRYPTION</div><div class="arrow">▼</div>
+  <div class="step" id="s5">🔒 SECURE MESSAGE</div>
+</div>
+
+<div class="card"><b>LAST MESSAGE</b><br>ROBOT_002 → SECURITY NODE<br>
+  Plain: <span id="msg">-</span><br>Encrypted: <code id="cipher">-</code><br>STATUS: <span id="mstat" class="wait">waiting</span></div>
+
+<div class="card"><b>ATTACK SIMULATION</b><br>
+  Normal packet &nbsp;&nbsp;&nbsp;&nbsp;<span id="a1" class="wait">-</span><br>
+  Modified packet &nbsp;<span id="a2" class="wait">-</span><br>
+  Replay packet &nbsp;&nbsp;&nbsp;<span id="a3" class="wait">-</span></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const demoData = {ecdh:1,fuzzy:1,hmac:1,aes:1,normal:1,tamper:2,replay:2,
+  msg:"ROBOT_002 MOVE TO ZONE_B", cipher:"9F3A1C7E5B02D48A66E1C0B3F7A9D251C4E80B6D3A91F2E7"};
+
+function reset(){ for(let i=0;i<6;i++) $("s"+i).className="step";
+  ["a1","a2","a3"].forEach(i=>{$(i).textContent="-";$(i).className="wait"}); $("mstat").textContent="waiting"; $("mstat").className="wait"; }
+
+// Light the boxes one by one, then show results
+function animate(d){
+  reset(); let ok=[1,d.ecdh,d.fuzzy,d.hmac,d.aes,d.aes], i=0;
+  (function next(){
+    if(i>0) $("s"+(i-1)).className = ok[i-1] ? "step done" : "step";
+    if(i<6){ $("s"+i).className="step active"; i++; setTimeout(next,700); return; }
+    $("msg").textContent=d.msg; $("cipher").textContent=d.cipher;
+    $("mstat").textContent = d.aes ? "ENCRYPTED ✓" : "FAILED ✗"; $("mstat").className = d.aes?"ok":"bad";
+    setA("a1",d.normal,"✓ ACCEPTED"); setA("a2",d.tamper,"✗ REJECTED"); setA("a3",d.replay,"✗ REJECTED");
+  })();
+}
+function setA(id,v,txt){ if(v==0) return;
+  // normal packet should be accepted(1); attacks should be rejected(2)
+  const good = (id=="a1") ? v==1 : v==2;
+  $(id).textContent = good ? txt : "!! WRONG RESULT"; $(id).className = good ? (id=="a1"?"ok":"bad") : "bad"; }
+
+async function run(useEsp){
+  if(!useEsp){ $("online").textContent="DEMO MODE"; return animate(demoData); }
+  try{
+    const r = await fetch("http://"+$("ip").value+"/run");   // ESP32 runs the full demo and replies
+    animate(await r.json()); $("online").textContent="ONLINE (live ESP32)";
+  }catch(e){ $("online").textContent="ESP32 NOT REACHABLE"; alert("Join the Wi-Fi 'SwarmForge-Security' (password swarmforge123) first."); }
+}
+</script></body></html>
